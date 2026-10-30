@@ -11,10 +11,14 @@ import {
   CheckCircle2,
   Clock,
   Zap,
+  Lock,
+  Target,
+  ArrowRight,
+  Share2,
 } from 'lucide-react';
 import { transformRawToImpactStatement } from '../services/gemini';
 import { dbStore } from '../services/db';
-import { QuarterlyGoal } from '../types';
+import { QuarterlyGoal, Achievement } from '../types';
 
 interface VoiceRecorderModalProps {
   isOpen: boolean;
@@ -39,6 +43,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
   const [isTranscribingServer, setIsTranscribingServer] = useState(false);
   const [engine, setEngine] = useState<'whisper' | 'deepgram' | 'gemini'>('whisper');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [savedAchievement, setSavedAchievement] = useState<Achievement | null>(null);
 
   const finalTranscriptRef = useRef<string>('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -58,6 +63,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       setAudioUrl(null);
       setTranscript('');
       setErrorMsg(null);
+      setSavedAchievement(null);
     }
   }, [isOpen]);
 
@@ -259,7 +265,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
       );
 
       // Save into DB as DRAFT (Private in Employee workspace until approved)
-      dbStore.addAchievement({
+      const created = dbStore.addAchievement({
         userId,
         source: 'voice',
         sourceReference: `Voice memo · ${recordingDuration > 0 ? recordingDuration + 's' : 'Captured'}`,
@@ -276,14 +282,25 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
         tags: result.tags,
       });
 
+      setSavedAchievement(created);
       onAchievementCreated();
-      onClose();
     } catch (err: any) {
       console.error('Processing error:', err);
       setErrorMsg('Failed to process voice transcript. Please try again.');
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleApproveFromModal = () => {
+    if (!savedAchievement) return;
+    dbStore.approveAchievement(savedAchievement.id, userId);
+    setSavedAchievement({
+      ...savedAchievement,
+      status: 'approved',
+      approvedAt: new Date().toISOString(),
+    });
+    onAchievementCreated();
   };
 
   if (!isOpen) return null;
@@ -338,213 +355,330 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
           </div>
         </div>
 
-        {/* Recording Canvas & Controls */}
-        <div className="p-6 space-y-5">
-          {errorMsg && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-              {errorMsg}
+        {savedAchievement ? (
+          /* Synthesized Result Review Screen */
+          <div className="p-6 space-y-5">
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">
+                  Business Impact Synthesized &amp; Saved!
+                </h4>
+                <p className="text-xs text-emerald-800 mt-0.5">
+                  Your update was distilled into a Google XYZ statement and stored as a <strong>Private Draft</strong> in your Employee Workspace.
+                </p>
+              </div>
             </div>
-          )}
 
-          {/* Visualizer Box */}
-          <div className="relative bg-stone-950 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px] overflow-hidden">
-            <canvas
-              ref={canvasRef}
-              width={500}
-              height={80}
-              className="w-full h-20"
-            />
-
-            {/* Timer & Live Indicator */}
-            <div className="absolute top-3 left-4 flex items-center gap-2">
-              {isRecording ? (
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                  <span className="font-mono">
-                    {Math.floor(recordingDuration / 60)}:
-                    {(recordingDuration % 60).toString().padStart(2, '0')}
-                  </span>
-                  <span className="text-[10px] text-rose-300 uppercase tracking-widest ml-1 font-mono">
-                    REC
-                  </span>
-                </div>
-              ) : (
-                <span className="text-xs text-stone-400 font-mono">
-                  {audioUrl ? 'Recording ready' : 'Ready to capture'}
+            <div className="p-5 bg-white rounded-xl border border-stone-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                  {savedAchievement.sourceReference}
                 </span>
+                <span
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                    savedAchievement.status === 'approved'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {savedAchievement.status === 'approved' ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Approved &amp; Shared</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3 h-3 text-amber-700" />
+                      <span>Private Draft</span>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-stone-900">{savedAchievement.title}</h3>
+                <p className="text-xs text-stone-800 leading-relaxed font-medium mt-1.5 bg-stone-50 p-3 rounded-lg border border-stone-200">
+                  {savedAchievement.businessImpactStatement}
+                </p>
+              </div>
+
+              <div className="text-[11px] text-stone-600 font-mono bg-stone-50 p-2.5 rounded-lg border border-stone-100">
+                Craft: {savedAchievement.technicalCraftSummary}
+              </div>
+
+              {savedAchievement.quantifiedMetrics.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {savedAchievement.quantifiedMetrics.map((metric, i) => (
+                    <span
+                      key={i}
+                      className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200"
+                    >
+                      {metric}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {userGoals.find(g => g.id === savedAchievement.linkedGoalId) && (
+                <div className="text-xs text-stone-600 flex items-center gap-2 pt-1 border-t border-stone-100">
+                  <Target className="w-3.5 h-3.5 text-stone-400" />
+                  <span>
+                    Linked OKR: <strong>{userGoals.find(g => g.id === savedAchievement.linkedGoalId)?.title}</strong>
+                  </span>
+                  {savedAchievement.goalMatchConfidence && (
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-mono ml-auto">
+                      {savedAchievement.goalMatchConfidence}% match
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="absolute top-3 right-4 text-[10px] text-stone-400 font-mono">
-              Engine: {engine.toUpperCase()}
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center justify-center gap-3">
-            {!isRecording ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-stone-100">
               <button
-                onClick={startRecording}
-                className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                onClick={() => {
+                  setSavedAchievement(null);
+                  setTranscript('');
+                  setAudioUrl(null);
+                }}
+                className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 cursor-pointer"
               >
-                <Radio className="w-4 h-4 animate-pulse" />
-                Start Voice Recording
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Record Another</span>
               </button>
-            ) : (
-              <button
-                onClick={stopRecording}
-                className="flex items-center gap-2 px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5 fill-white" />
-                Stop Recording
-              </button>
-            )}
 
-            {audioUrl && !isRecording && (
               <div className="flex items-center gap-2">
-                <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
+                {savedAchievement.status !== 'approved' && (
+                  <button
+                    onClick={handleApproveFromModal}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve &amp; Share to EM</span>
+                  </button>
+                )}
+
                 <button
-                  onClick={() => {
-                    setAudioUrl(null);
-                    setTranscript('');
-                  }}
-                  className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg"
-                  title="Discard"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  View in Private Workspace
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Quick Voice Memo Presets */}
-          <div>
-            <div className="flex items-center justify-between text-xs text-stone-700 mb-2 font-medium">
-              <span>Quick Voice Memo Presets (One-click simulation)</span>
-              <span className="text-[11px] text-stone-700">Click to load</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  loadSampleVoice(
-                    'Hey team, quick update on the database layer. We finished indexing the transaction tables and set up multi-tier Redis caching with 30s TTL. Just benchmarked it under 25k requests per second and p99 dropped from 150ms down to 88ms with zero timeouts. Pretty stoked on this one.'
-                  )
-                }
-                className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
-              >
-                <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
-                  <span>Checkout Latency</span>
-                  <Zap className="w-3 h-3 text-amber-500" />
-                </div>
-                <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
-                  Indexed Postgres tables &amp; Redis read-through cache (p99 &lt; 88ms).
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  loadSampleVoice(
-                    'Just tracked down that nasty memory leak in the WebSocket gateway service. Turns out abruptly disconnected clients were holding circular references in the event listener queue. Replaced it with a weak map and cleaned up connection listeners on socket close. Memory footprint dropped by 84% from 2.4 gigabytes down to 380 megabytes.'
-                  )
-                }
-                className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
-              >
-                <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
-                  <span>Memory Leak Fix</span>
-                  <Zap className="w-3 h-3 text-indigo-500" />
-                </div>
-                <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
-                  Fixed circular listener leak in WebSocket gateway (-84% memory).
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  loadSampleVoice(
-                    'Hey Sarah, update on the zero downtime migration objective. We built a pre-flight lock inspection runner into our CI pipeline that sets a 250 millisecond lock timeout on alter table statements and aborts if exclusive table locks are requested. Already verified against 6 microservices without any downtime.'
-                  )
-                }
-                className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
-              >
-                <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
-                  <span>Migration Safety</span>
-                  <Zap className="w-3 h-3 text-emerald-500" />
-                </div>
-                <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
-                  Automated migration lock runner with 250ms timeout guardrails.
-                </p>
-              </button>
             </div>
           </div>
+        ) : (
+          /* Recording & Intake Screen */
+          <>
+            <div className="p-6 space-y-5">
+              {errorMsg && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                  {errorMsg}
+                </div>
+              )}
 
-          {/* Transcript Preview & Edit */}
-          <div>
-            <div className="flex items-center justify-between text-xs text-stone-700 mb-1.5 font-medium">
-              <span className="flex items-center gap-1.5">
-                <span>Captured Transcript</span>
-                {isTranscribingServer && (
-                  <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-mono animate-pulse flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-600" />
-                    <span>Gemini Audio Refining Clarity...</span>
-                  </span>
+              {/* Visualizer Box */}
+              <div className="relative bg-stone-950 rounded-xl p-4 flex flex-col items-center justify-center min-h-[140px] overflow-hidden">
+                <canvas
+                  ref={canvasRef}
+                  width={500}
+                  height={80}
+                  className="w-full h-20"
+                />
+
+                {/* Timer & Live Indicator */}
+                <div className="absolute top-3 left-4 flex items-center gap-2">
+                  {isRecording ? (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-400">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                      <span className="font-mono">
+                        {Math.floor(recordingDuration / 60)}:
+                        {(recordingDuration % 60).toString().padStart(2, '0')}
+                      </span>
+                      <span className="text-[10px] text-rose-300 uppercase tracking-widest ml-1 font-mono">
+                        REC
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-stone-400 font-mono">
+                      {audioUrl ? 'Recording ready' : 'Ready to capture'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="absolute top-3 right-4 text-[10px] text-stone-400 font-mono">
+                  Engine: {engine.toUpperCase()}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-center gap-3">
+                {!isRecording ? (
+                  <button
+                    onClick={startRecording}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Radio className="w-4 h-4 animate-pulse" />
+                    Start Voice Recording
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopRecording}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-white" />
+                    Stop Recording
+                  </button>
                 )}
-              </span>
-              {transcript && (
-                <span className="text-[11px] text-stone-700">
-                  {transcript.split(/\s+/).filter(Boolean).length} words
-                </span>
-              )}
+
+                {audioUrl && !isRecording && (
+                  <div className="flex items-center gap-2">
+                    <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
+                    <button
+                      onClick={() => {
+                        setAudioUrl(null);
+                        setTranscript('');
+                      }}
+                      className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg"
+                      title="Discard"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Voice Memo Presets */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-stone-700 mb-2 font-medium">
+                  <span>Quick Voice Memo Presets (One-click simulation)</span>
+                  <span className="text-[11px] text-stone-700">Click to load</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      loadSampleVoice(
+                        'Hey team, quick update on the database layer. We finished indexing the transaction tables and set up multi-tier Redis caching with 30s TTL. Just benchmarked it under 25k requests per second and p99 dropped from 150ms down to 88ms with zero timeouts. Pretty stoked on this one.'
+                      )
+                    }
+                    className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
+                  >
+                    <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
+                      <span>Checkout Latency</span>
+                      <Zap className="w-3 h-3 text-amber-500" />
+                    </div>
+                    <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
+                      Indexed Postgres tables &amp; Redis read-through cache (p99 &lt; 88ms).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      loadSampleVoice(
+                        'Just tracked down that nasty memory leak in the WebSocket gateway service. Turns out abruptly disconnected clients were holding circular references in the event listener queue. Replaced it with a weak map and cleaned up connection listeners on socket close. Memory footprint dropped by 84% from 2.4 gigabytes down to 380 megabytes.'
+                      )
+                    }
+                    className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
+                  >
+                    <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
+                      <span>Memory Leak Fix</span>
+                      <Zap className="w-3 h-3 text-indigo-500" />
+                    </div>
+                    <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
+                      Fixed circular listener leak in WebSocket gateway (-84% memory).
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      loadSampleVoice(
+                        'Hey Sarah, update on the zero downtime migration objective. We built a pre-flight lock inspection runner into our CI pipeline that sets a 250 millisecond lock timeout on alter table statements and aborts if exclusive table locks are requested. Already verified against 6 microservices without any downtime.'
+                      )
+                    }
+                    className="p-2.5 text-left border border-stone-200 hover:border-stone-400 rounded-lg text-xs hover:bg-stone-50 transition-colors group cursor-pointer"
+                  >
+                    <div className="font-semibold text-stone-900 group-hover:text-stone-950 flex items-center justify-between">
+                      <span>Migration Safety</span>
+                      <Zap className="w-3 h-3 text-emerald-500" />
+                    </div>
+                    <p className="text-[11px] text-stone-700 line-clamp-2 mt-1">
+                      Automated migration lock runner with 250ms timeout guardrails.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Transcript Preview & Edit */}
+              <div>
+                <div className="flex items-center justify-between text-xs text-stone-700 mb-1.5 font-medium">
+                  <span className="flex items-center gap-1.5">
+                    <span>Captured Transcript</span>
+                    {isTranscribingServer && (
+                      <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-mono animate-pulse flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-600" />
+                        <span>Gemini Audio Refining Clarity...</span>
+                      </span>
+                    )}
+                  </span>
+                  {transcript && (
+                    <span className="text-[11px] text-stone-700">
+                      {transcript.split(/\s+/).filter(Boolean).length} words
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={4}
+                  value={transcript}
+                  onChange={(e) => {
+                    setTranscript(e.target.value);
+                    finalTranscriptRef.current = e.target.value;
+                  }}
+                  placeholder="Speak clearly into your microphone or pick a preset above... Raw transcript will stream here in real-time without duplicates."
+                  className="w-full text-xs font-mono p-3 border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-stone-900/10 transition-colors resize-none leading-relaxed"
+                />
+              </div>
             </div>
-            <textarea
-              rows={4}
-              value={transcript}
-              onChange={(e) => {
-                setTranscript(e.target.value);
-                finalTranscriptRef.current = e.target.value;
-              }}
-              placeholder="Speak clearly into your microphone or pick a preset above... Raw transcript will stream here in real-time without duplicates."
-              className="w-full text-xs font-mono p-3 border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-stone-900/10 transition-colors resize-none leading-relaxed"
-            />
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
-          <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Will be saved to Employee Private Workspace as draft</span>
-          </div>
+            {/* Footer */}
+            <div className="px-6 py-4 bg-stone-50 border-t border-stone-100 flex items-center justify-between">
+              <div className="text-[11px] text-stone-500 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Will be saved to Employee Private Workspace as draft</span>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              disabled={isProcessing}
-              className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 rounded-md"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleProcessTranscript}
-              disabled={!transcript.trim() || isProcessing}
-              className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-            >
-              {isProcessing ? (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                  <span>Distilling Impact (under 3s)...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Distill to Impact Statement</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={onClose}
+                  disabled={isProcessing}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 rounded-md"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleProcessTranscript}
+                  disabled={!transcript.trim() || isProcessing}
+                  className="flex items-center gap-2 px-4 py-2 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                      <span>Distilling Impact (under 3s)...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Distill to Impact Statement</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

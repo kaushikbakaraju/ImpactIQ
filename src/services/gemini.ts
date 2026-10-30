@@ -58,12 +58,12 @@ export async function transformRawToImpactStatement(
     health: g.health,
   }));
 
-  // Try calling the server API first with a 5000ms timeout
+  // Try calling the server API first with a 20s timeout (well within 30s)
   try {
     const res = await fetch('/api/llm/transform', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(20000),
       body: JSON.stringify({
         rawInput,
         goals: goalsContext,
@@ -118,10 +118,9 @@ Respond strictly in valid JSON matching this structure:
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: prompt,
         config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseMimeType: 'application/json',
         },
       });
@@ -152,7 +151,7 @@ export async function synthesize1on1Agenda(
     const res = await fetch('/api/copilot/agenda', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         employeeId: employee.id,
         managerId: manager.id,
@@ -213,10 +212,9 @@ Output strictly valid JSON with this shape:
 }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-3.1-flash-lite',
         contents: prompt,
         config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseMimeType: 'application/json',
         },
       });
@@ -361,8 +359,15 @@ function fallbackDistiller(
     title = `Delivered ${sourceReference}: Core Engineering Enhancement`;
   }
 
-  // Google XYZ Impact Statement
-  const statement = `Accelerated core service efficiency and reliability (${metrics.join(', ')}) by architecting fault-tolerant updates across critical execution paths, eliminating regression risks and ensuring zero user-facing downtime.`;
+  // Cleaned action directly extracted from the raw input
+  const cleanedAction = rawInput
+    .replace(/^(hey team|quick update|update on the|hey [a-z]+|just|we|i|yesterday|today|so|pretty stoked)[,\s:]+/i, '')
+    .replace(/[.!?]\s*$/, '')
+    .trim();
+
+  // Google XYZ Impact Statement: Accomplished [X] as measured by [Y] by doing [Z]
+  const actionText = cleanedAction ? (cleanedAction.charAt(0).toLowerCase() + cleanedAction.slice(1)) : 'implementing targeted architectural optimizations';
+  const statement = `Accomplished platform performance and reliability targets (${metrics.slice(0, 2).join(', ')}) by ${actionText}, eliminating production regression risks and safeguarding critical service SLAs.`;
 
   return {
     title,

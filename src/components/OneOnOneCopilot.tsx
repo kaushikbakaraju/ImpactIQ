@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Sparkles,
@@ -65,6 +65,35 @@ export const OneOnOneCopilot: React.FC<OneOnOneCopilotProps> = ({
       createdAt: new Date().toISOString(),
     }
   );
+
+  useEffect(() => {
+    if (initialPartner?.id) {
+      setPartnerId(initialPartner.id);
+    }
+  }, [initialPartner?.id]);
+
+  useEffect(() => {
+    if (employee && manager) {
+      const agendas = dbStore.queryAgendas(employee.id, manager.id);
+      if (agendas.length > 0) {
+        setCurrentAgenda(agendas[0]);
+      } else {
+        setCurrentAgenda({
+          id: 'agenda_' + Date.now(),
+          employeeId: employee.id,
+          managerId: manager.id,
+          scheduledDate: new Date(Date.now() + 86400000 * 3).toISOString(),
+          status: 'scheduled',
+          executiveSummary: 'Upcoming bi-weekly 1:1 sync. AI Copilot is ready to synthesize recent approved achievements and stalled goals into an agenda.',
+          talkingPoints: [],
+          blockers: [],
+          actionItems: [],
+          sharedNotes: '',
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+  }, [employee?.id, manager?.id]);
 
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [newTopicTitle, setNewTopicTitle] = useState('');
