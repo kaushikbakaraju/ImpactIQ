@@ -8,6 +8,11 @@ import {
   Users,
   CheckCircle2,
   ChevronDown,
+  BookOpen,
+  Sparkles,
+  HelpCircle,
+  Target,
+  Lock,
 } from 'lucide-react';
 import { User, Role } from '../types';
 
@@ -21,6 +26,7 @@ interface HeaderProps {
   onOpenWebhookModal: () => void;
   onOpenRlsModal: () => void;
   onOpenBragSheet: () => void;
+  onOpenVisualGuide: () => void;
   pendingDraftsCount: number;
 }
 
@@ -34,6 +40,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenWebhookModal,
   onOpenRlsModal,
   onOpenBragSheet,
+  onOpenVisualGuide,
   pendingDraftsCount,
 }) => {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
@@ -56,8 +63,11 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-6">
+            <div
+              onClick={() => setActiveTab(isIC ? 'workspace' : 'team_overview')}
+              className="flex items-center gap-2.5 cursor-pointer"
+            >
               <div className="w-9 h-9 rounded-lg bg-stone-900 text-white flex items-center justify-center font-bold tracking-tight text-base shadow-sm">
                 IQ
               </div>
@@ -65,19 +75,19 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-base font-bold tracking-tight text-stone-900 block leading-none">
                   ImpactIQ
                 </span>
-                <span className="text-[11px] text-stone-700 tracking-wide block mt-0.5">
-                  Performance & 1:1 Copilot
+                <span className="text-[11px] text-stone-500 tracking-wide block mt-0.5">
+                  Performance &amp; 1:1 Copilot
                 </span>
               </div>
             </div>
 
             {/* Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               {isIC ? (
                 <>
                   <button
                     onClick={() => setActiveTab('workspace')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
                       activeTab === 'workspace'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
@@ -92,7 +102,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                   <button
                     onClick={() => setActiveTab('one_on_one')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                       activeTab === 'one_on_one'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
@@ -103,12 +113,13 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                   <button
                     onClick={() => setActiveTab('goals')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                       activeTab === 'goals'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
                     }`}
                   >
+                    <Target className="w-3.5 h-3.5" />
                     Quarterly OKRs
                   </button>
                 </>
@@ -116,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <>
                   <button
                     onClick={() => setActiveTab('team_overview')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                       activeTab === 'team_overview'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
@@ -127,7 +138,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                   <button
                     onClick={() => setActiveTab('one_on_one')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                       activeTab === 'one_on_one'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
@@ -138,12 +149,13 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                   <button
                     onClick={() => setActiveTab('coaching_notes')}
-                    className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                       activeTab === 'coaching_notes'
                         ? 'bg-stone-900 text-white'
                         : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
                     }`}
                   >
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
                     Private Coaching
                   </button>
                 </>
@@ -151,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               <button
                 onClick={() => setActiveTab('webhooks')}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
                   activeTab === 'webhooks'
                     ? 'bg-stone-900 text-white'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
@@ -160,46 +172,58 @@ export const Header: React.FC<HeaderProps> = ({
                 <GitPullRequest className="w-3.5 h-3.5" />
                 Webhook Hub
               </button>
+
+              <button
+                onClick={() => setActiveTab('docs')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'docs'
+                    ? 'bg-stone-900 text-white'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                Manual &amp; Docs
+              </button>
             </nav>
           </div>
 
           {/* Action Tools & Persona Switcher */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            {/* Visual Guide / Presentation Button */}
+            <button
+              onClick={onOpenVisualGuide}
+              title="Open Interactive Visual Guide & Slide Deck"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Visual Guide</span>
+            </button>
+
             {/* Voice Capture Quick Trigger */}
             <button
               onClick={onOpenVoiceModal}
               title="Record voice update (Whisper / Deepgram / Gemini)"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg transition-colors cursor-pointer"
             >
               <Mic className="w-3.5 h-3.5 text-rose-600" />
-              <span className="hidden sm:inline">Voice Update</span>
+              <span className="hidden md:inline">Voice Update</span>
             </button>
 
-            {/* Quick Webhook trigger */}
-            <button
-              onClick={onOpenWebhookModal}
-              title="Simulate GitHub PR or Jira Ticket webhook"
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-stone-800 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg transition-colors cursor-pointer"
-            >
-              <GitPullRequest className="w-3.5 h-3.5 text-blue-600" />
-              <span>Simulate Webhook</span>
-            </button>
-
-            {/* Brag Sheet Quick trigger (for IC or EM viewing report) */}
+            {/* Brag Sheet Quick trigger */}
             <button
               onClick={onOpenBragSheet}
               title="Export Quarterly Brag Sheet"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
             >
               <Award className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Brag Sheet</span>
+              <span className="hidden md:inline">Brag Sheet</span>
             </button>
 
             {/* RLS Policy Inspector */}
             <button
               onClick={onOpenRlsModal}
               title="Inspect PostgreSQL Row-Level Security Policies"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-stone-700 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-lg transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-stone-700 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-lg transition-colors cursor-pointer"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
               <span className="hidden xl:inline text-[11px] font-mono">RLS Active</span>
@@ -231,7 +255,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-stone-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3.5 py-2 border-b border-stone-100">
                     <p className="text-[11px] font-semibold text-stone-700 uppercase tracking-wider">
-                      Switch Role & Hierarchy Context
+                      Switch Role &amp; Hierarchy Context
                     </p>
                     <p className="text-xs text-stone-500 mt-0.5">
                       RLS security rules dynamically scope data based on selected persona.
@@ -281,6 +305,65 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile Sub-Navigation Bar */}
+        <div className="lg:hidden flex items-center gap-1 overflow-x-auto py-2 border-t border-stone-100 text-xs">
+          {isIC ? (
+            <>
+              <button
+                onClick={() => setActiveTab('workspace')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'workspace' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                Workspace
+              </button>
+              <button
+                onClick={() => setActiveTab('one_on_one')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'one_on_one' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                1:1 Copilot
+              </button>
+              <button
+                onClick={() => setActiveTab('goals')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'goals' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                OKRs
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setActiveTab('team_overview')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'team_overview' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                Team
+              </button>
+              <button
+                onClick={() => setActiveTab('one_on_one')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'one_on_one' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                1:1 Copilot
+              </button>
+              <button
+                onClick={() => setActiveTab('coaching_notes')}
+                className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'coaching_notes' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+              >
+                Coaching
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setActiveTab('webhooks')}
+            className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'webhooks' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+          >
+            Webhooks
+          </button>
+          <button
+            onClick={() => setActiveTab('docs')}
+            className={`px-3 py-1 rounded-md shrink-0 font-medium ${activeTab === 'docs' ? 'bg-stone-900 text-white' : 'text-stone-600'}`}
+          >
+            Manual &amp; Docs
+          </button>
         </div>
       </div>
     </header>

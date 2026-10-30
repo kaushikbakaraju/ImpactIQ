@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { QuarterlyGoal, Achievement, User, CoachingNote } from '../types';
 
 export interface ImpactTransformationResult {
@@ -58,11 +58,12 @@ export async function transformRawToImpactStatement(
     health: g.health,
   }));
 
-  // Try calling the server API first (which has server-side API key injection)
+  // Try calling the server API first with a 5000ms timeout
   try {
     const res = await fetch('/api/llm/transform', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
         rawInput,
         goals: goalsContext,
@@ -72,7 +73,9 @@ export async function transformRawToImpactStatement(
     });
     if (res.ok) {
       const data = await res.json();
-      return data;
+      if (data.businessImpactStatement && data.title) {
+        return data;
+      }
     }
   } catch {
     // server route fallback
@@ -118,6 +121,7 @@ Respond strictly in valid JSON matching this structure:
         model: 'gemini-3.8-flash',
         contents: prompt,
         config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseMimeType: 'application/json',
         },
       });
@@ -148,6 +152,7 @@ export async function synthesize1on1Agenda(
     const res = await fetch('/api/copilot/agenda', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000),
       body: JSON.stringify({
         employeeId: employee.id,
         managerId: manager.id,
@@ -210,7 +215,10 @@ Output strictly valid JSON with this shape:
       const response = await ai.models.generateContent({
         model: 'gemini-3.8-flash',
         contents: prompt,
-        config: { responseMimeType: 'application/json' },
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseMimeType: 'application/json',
+        },
       });
       const text = response.text?.trim() || '{}';
       return JSON.parse(text);

@@ -8,9 +8,21 @@ import { WebhookSimulatorModal } from './components/WebhookSimulatorModal';
 import { RlsInspectorModal } from './components/RlsInspectorModal';
 import { BragSheetModal } from './components/BragSheetModal';
 import { WebhookHubView } from './components/WebhookHubView';
+import { VisualGuideModal } from './components/VisualGuideModal';
+import { DocumentationView } from './components/DocumentationView';
 import { dbStore, INITIAL_USERS } from './services/db';
 import { User, Achievement, QuarterlyGoal } from './types';
-import { ShieldAlert, ShieldCheck, Target, Lock, CheckCircle2 } from 'lucide-react';
+import {
+  ShieldAlert,
+  ShieldCheck,
+  Target,
+  Lock,
+  CheckCircle2,
+  BookOpen,
+  Sparkles,
+  ArrowRight,
+  HelpCircle,
+} from 'lucide-react';
 
 export default function App() {
   const [allUsers, setAllUsers] = useState<User[]>(INITIAL_USERS);
@@ -24,8 +36,27 @@ export default function App() {
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
   const [rlsModalOpen, setRlsModalOpen] = useState(false);
   const [bragSheetOpen, setBragSheetOpen] = useState(false);
+  const [visualGuideOpen, setVisualGuideOpen] = useState(false);
   const [selected1on1Partner, setSelected1on1Partner] = useState<User | undefined>(undefined);
   const [roleSwitchBanner, setRoleSwitchBanner] = useState<string | null>(null);
+
+  // Hash-based routing sync for multi-page feel
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#/', '').replace('#', '');
+      if (hash && ['workspace', 'team_overview', 'one_on_one', 'goals', 'coaching_notes', 'webhooks', 'docs'].includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    window.location.hash = `#/${tab}`;
+  };
 
   const forceRefresh = () => {
     setRefreshKey(prev => prev + 1);
@@ -35,10 +66,10 @@ export default function App() {
   const handleSwitchUser = (user: User) => {
     setCurrentUser(user);
     if (user.role === 'EM') {
-      setActiveTab('team_overview');
+      handleTabChange('team_overview');
       setRoleSwitchBanner(`Switched to Manager context (${user.name}). Strict RLS now filters team data to your direct reporting tree.`);
     } else {
-      setActiveTab('workspace');
+      handleTabChange('workspace');
       setRoleSwitchBanner(`Switched to Employee context (${user.name}). Your workspace is private; unapproved drafts are hidden from management.`);
     }
     setTimeout(() => setRoleSwitchBanner(null), 5000);
@@ -52,17 +83,47 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-100/70 text-stone-900 flex flex-col font-sans selection:bg-stone-900 selection:text-white">
+      {/* Top Welcome / Orientation Bar */}
+      <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 text-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber-950 font-medium">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>
+              <strong>New to ImpactIQ?</strong> Take the interactive visual masterclass or explore the complete feature manual.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setVisualGuideOpen(true)}
+              className="text-amber-900 hover:text-black font-bold underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>Visual Presentation</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+            <span className="text-amber-300">·</span>
+            <button
+              onClick={() => handleTabChange('docs')}
+              className="text-amber-900 hover:text-black font-bold underline cursor-pointer"
+            >
+              Operations Manual
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* App Header */}
       <Header
         currentUser={currentUser}
         allUsers={allUsers}
         onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         onOpenVoiceModal={() => setVoiceModalOpen(true)}
         onOpenWebhookModal={() => setWebhookModalOpen(true)}
         onOpenRlsModal={() => setRlsModalOpen(true)}
         onOpenBragSheet={() => setBragSheetOpen(true)}
+        onOpenVisualGuide={() => setVisualGuideOpen(true)}
         pendingDraftsCount={pendingDraftsCount}
       />
 
@@ -86,7 +147,16 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentUser.role === 'IC' ? (
+        {activeTab === 'docs' ? (
+          <DocumentationView
+            currentUser={currentUser}
+            onLaunchVoice={() => setVoiceModalOpen(true)}
+            onLaunchWebhook={() => setWebhookModalOpen(true)}
+            onLaunchRls={() => setRlsModalOpen(true)}
+            onLaunchBragSheet={() => setBragSheetOpen(true)}
+            onOpenVisualGuide={() => setVisualGuideOpen(true)}
+          />
+        ) : currentUser.role === 'IC' ? (
           // --- IC (Employee) Views ---
           <>
             {activeTab === 'workspace' && (
@@ -197,7 +267,7 @@ export default function App() {
                 allUsers={allUsers}
                 onSelectReportFor1on1={(report) => {
                   setSelected1on1Partner(report);
-                  setActiveTab('one_on_one');
+                  handleTabChange('one_on_one');
                 }}
                 onRefresh={forceRefresh}
               />
@@ -290,14 +360,28 @@ export default function App() {
 
           <div className="flex items-center gap-4 text-stone-500">
             <button
+              onClick={() => setVisualGuideOpen(true)}
+              className="hover:text-stone-900 flex items-center gap-1 font-semibold"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Visual Guide</span>
+            </button>
+            <span>·</span>
+            <button
+              onClick={() => handleTabChange('docs')}
+              className="hover:text-stone-900 flex items-center gap-1 font-semibold"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Documentation</span>
+            </button>
+            <span>·</span>
+            <button
               onClick={() => setRlsModalOpen(true)}
               className="hover:text-stone-900 flex items-center gap-1 font-mono text-[11px]"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
               <span>RLS Policies Active</span>
             </button>
-            <span>·</span>
-            <span>Direct Reporting Isolation Enforced</span>
           </div>
         </div>
       </footer>
@@ -332,6 +416,15 @@ export default function App() {
         employee={currentUser.role === 'IC' ? currentUser : allUsers.find(u => u.id === selected1on1Partner?.id) || allUsers[1]}
         achievements={dbStore.queryAchievements(currentUser.id, currentUser.role === 'IC' ? currentUser.id : selected1on1Partner?.id || 'user_ic_1').data}
         goals={dbStore.queryGoals(currentUser.id, currentUser.role === 'IC' ? currentUser.id : selected1on1Partner?.id || 'user_ic_1').data}
+      />
+
+      <VisualGuideModal
+        isOpen={visualGuideOpen}
+        onClose={() => setVisualGuideOpen(false)}
+        onLaunchVoice={() => setVoiceModalOpen(true)}
+        onLaunchWebhook={() => setWebhookModalOpen(true)}
+        onLaunchRls={() => setRlsModalOpen(true)}
+        onLaunchBragSheet={() => setBragSheetOpen(true)}
       />
     </div>
   );

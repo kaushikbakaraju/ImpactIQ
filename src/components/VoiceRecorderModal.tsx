@@ -36,9 +36,11 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTranscribingServer, setIsTranscribingServer] = useState(false);
   const [engine, setEngine] = useState<'whisper' | 'deepgram' | 'gemini'>('whisper');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const finalTranscriptRef = useRef<string>('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<any>(null);
@@ -125,7 +127,8 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
     setTranscript('');
     setAudioUrl(null);
 
-    // Initialize in-browser Speech Recognition for instant transcription
+    // Track final vs interim speech recognition transcripts to prevent duplicates
+    finalTranscriptRef.current = '';
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       try {
@@ -135,15 +138,20 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
         recognition.lang = 'en-US';
 
         recognition.onresult = (event: any) => {
-          let currentTranscript = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
+          let interimTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscriptRef.current += event.results[i][0].transcript + ' ';
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
           }
-          setTranscript(prev => (prev ? prev + ' ' : '') + currentTranscript);
+          const combined = (finalTranscriptRef.current + interimTranscript).trim();
+          setTranscript(combined);
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('Speech recognition warning:', event.error);
+          console.warn('Speech recognition status:', event.error);
         };
 
         recognition.start();
@@ -154,10 +162,20 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       startVisualizer(stream);
 
-      const mediaRecorder = new MediaRecorder(stream);
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : 'audio/webm',
+      });
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
@@ -166,11 +184,42 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
         }
       };
 
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
         stream.getTracks().forEach(track => track.stop());
+
+        // If Web Speech API was unavailable or recorded very little, or if user explicitly requested Gemini/Deepgram
+        if (audioChunksRef.current.length > 0 && (!finalTranscriptRef.current.trim() || engine === 'gemini' || engine === 'deepgram')) {
+          setIsTranscribingServer(true);
+          try {
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+              const base64Data = reader.result as string;
+              const res = await fetch('/api/transcribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  audioData: base64Data,
+                  mimeType: 'audio/webm',
+                }),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.transcript && data.transcript.trim()) {
+                  setTranscript(data.transcript.trim());
+                  finalTranscriptRef.current = data.transcript.trim();
+                }
+              }
+              setIsTranscribingServer(false);
+            };
+          } catch (e) {
+            console.warn('Server transcription error:', e);
+            setIsTranscribingServer(false);
+          }
+        }
       };
 
       mediaRecorder.start(250);
@@ -192,6 +241,7 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
 
   const loadSampleVoice = (sampleText: string) => {
     stopRecordingCleanup();
+    finalTranscriptRef.current = sampleText;
     setTranscript(sampleText);
     setErrorMsg(null);
   };
@@ -433,7 +483,15 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
           {/* Transcript Preview & Edit */}
           <div>
             <div className="flex items-center justify-between text-xs text-stone-700 mb-1.5 font-medium">
-              <span>Captured Raw Transcript</span>
+              <span className="flex items-center gap-1.5">
+                <span>Captured Transcript</span>
+                {isTranscribingServer && (
+                  <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded font-mono animate-pulse flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    <span>Gemini Audio Refining Clarity...</span>
+                  </span>
+                )}
+              </span>
               {transcript && (
                 <span className="text-[11px] text-stone-700">
                   {transcript.split(/\s+/).filter(Boolean).length} words
@@ -443,9 +501,12 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
             <textarea
               rows={4}
               value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Speak into your microphone or pick a preset above... Raw transcript will stream here in real-time."
-              className="w-full text-xs font-mono p-3 border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-stone-900/10 transition-colors resize-none"
+              onChange={(e) => {
+                setTranscript(e.target.value);
+                finalTranscriptRef.current = e.target.value;
+              }}
+              placeholder="Speak clearly into your microphone or pick a preset above... Raw transcript will stream here in real-time without duplicates."
+              className="w-full text-xs font-mono p-3 border border-stone-200 rounded-lg bg-stone-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-stone-900/10 transition-colors resize-none leading-relaxed"
             />
           </div>
         </div>
@@ -472,8 +533,8 @@ export const VoiceRecorderModal: React.FC<VoiceRecorderModalProps> = ({
             >
               {isProcessing ? (
                 <>
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  <span>Distilling Business Impact...</span>
+                  <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                  <span>Distilling Impact (under 3s)...</span>
                 </>
               ) : (
                 <>
