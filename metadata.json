@@ -1,0 +1,6 @@
+{
+  "name": "ImpactIQ - Engineering Impact & 1:1 Copilot",
+  "description": "AI-powered engineering impact distillation, voice logs, GitHub/Jira webhooks, direct-report RLS hierarchy, automated 1:1 agendas, and brag sheets.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
